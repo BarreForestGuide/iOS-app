@@ -20,8 +20,9 @@
     self.sharingEnabled = NO;
     self.trailTypeEnabled = nil;
     self.poiTypeEnabled = nil;
-    self.discGolfEnabled = NO;
+    self.discGolfEnabled = YES;
     self.discGolfIconsEnabled = NO;
+    self.emailAddress = nil;
   }
   return(self);
 }
@@ -42,6 +43,7 @@
   self.poiTypeEnabled = [decoder decodeObjectForKey:@"poiTypeEnabled"];
   self.discGolfEnabled = [decoder decodeBoolForKey:@"discGolfEnabled"];
   self.discGolfIconsEnabled = [decoder decodeBoolForKey:@"discGolfIconsEnabled"];
+  self.emailAddress = [decoder decodeObjectForKey:@"emailAddress"];
   return(self);
 }
 
@@ -52,7 +54,7 @@
   } else {
     self = [self init];
   }
-  NSLog(@"initFromDefaults: mapTracksGPS=%d, mapType=%d, mapSeason=%d, sharingEnabled=%d, trailTypeEnabled=%@, poiTypeEnabled=%@, discGolfEnabled=%d, discGolfIconsEnabled=%d", self.mapTracksGPS, self.mapType, self.mapSeason, self.sharingEnabled, self.trailTypeEnabled, self.poiTypeEnabled, self.discGolfEnabled, self.discGolfIconsEnabled);
+  NSLog(@"initFromDefaults: mapTracksGPS=%d, mapType=%d, mapSeason=%d, sharingEnabled=%d, trailTypeEnabled=%@, poiTypeEnabled=%@, discGolfEnabled=%d, discGolfIconsEnabled=%d, emailAddress=%@", self.mapTracksGPS, self.mapType, self.mapSeason, self.sharingEnabled, self.trailTypeEnabled, self.poiTypeEnabled, self.discGolfEnabled, self.discGolfIconsEnabled, self.emailAddress);
   return(self);
 }
 
@@ -65,6 +67,7 @@
   [encoder encodeObject:_poiTypeEnabled forKey:@"poiTypeEnabled"];
   [encoder encodeBool:_discGolfEnabled forKey:@"discGolfEnabled"];
   [encoder encodeBool:_discGolfIconsEnabled forKey:@"discGolfIconsEnabled"];
+  [encoder encodeObject:_emailAddress forKey:@"emailAddress"];
 }
 
 - (void) saveToDefaults {
@@ -79,7 +82,7 @@
   */
 
   [[NSUserDefaults standardUserDefaults] setObject:data forKey:@"config"];
-  NSLog(@"saveToDefaults: mapTracksGPS=%d, mapType=%d, mapSeason=%d, sharingEnabled=%d, trailTypeEnabled=%@, poiTypeEnabled=%@, discGolfEnabled=%d, discGolfIconsEnabled=%d", self.mapTracksGPS, self.mapType, self.mapSeason, self.sharingEnabled, self.trailTypeEnabled, self.poiTypeEnabled, self.discGolfEnabled, self.discGolfIconsEnabled);
+  NSLog(@"saveToDefaults: mapTracksGPS=%d, mapType=%d, mapSeason=%d, sharingEnabled=%d, trailTypeEnabled=%@, poiTypeEnabled=%@, discGolfEnabled=%d, discGolfIconsEnabled=%d, emailAddress=%@", self.mapTracksGPS, self.mapType, self.mapSeason, self.sharingEnabled, self.trailTypeEnabled, self.poiTypeEnabled, self.discGolfEnabled, self.discGolfIconsEnabled, self.emailAddress);
 }
 
 - (BOOL) isSummerMapSeason {
@@ -91,6 +94,39 @@
     int yearDay = [userCal ordinalityOfUnit:NSDayCalendarUnit inUnit: NSYearCalendarUnit forDate: now];
     if ((yearDay > 79) && (yearDay < 266)) return(YES);  // FIXME - these are just the equinoxes, and probably aren't realistic times to switch over
     else                                   return(NO);
+  }
+}
+
+- (void) updateEmailAddress:(NSString*)address {
+  if ((self.emailAddress==nil) ||
+      (![address isEqualToString:self.emailAddress]))
+  {
+    if (address && ([address length]>0)) self.emailAddress = address;
+      else                               self.emailAddress = nil;
+
+    if (self.emailAddress && ([self.emailAddress length]>0)) {
+      // Copied from the APN device registration code
+      NSString *uniqueIdentifier = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
+      uniqueIdentifier = [uniqueIdentifier stringByReplacingOccurrencesOfString:@"-" withString:@""];
+
+      //NSString *url  = [NSString stringWithFormat:@"http://www.uvm.edu/~kgauger/BarreTownForest/updateToken.php"];
+      NSString *url  = [NSString stringWithFormat:@"http://home.theagricolas.org/cs275/updateToken.php"];
+      NSString *addrEsc = [self.emailAddress stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+      NSString *post = [NSString stringWithFormat:@"&device_id=%@&email_address=%@", uniqueIdentifier, addrEsc];
+      NSData   *postData   = [post dataUsingEncoding:NSASCIIStringEncoding allowLossyConversion:YES];
+      NSString *postLength = [NSString stringWithFormat:@"%lu", (unsigned long)[postData length]];
+      NSMutableURLRequest *request = [[NSMutableURLRequest alloc] init];
+      [request setURL:[NSURL URLWithString: url]];
+      [request setHTTPMethod:@"POST"];
+      [request setValue:postLength forHTTPHeaderField:@"Content-Length"];
+      [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Current-Type"];
+      [request setHTTPBody:postData];
+
+      // Start the POST - note, this is opportunistic, so I don't pay attention to the result
+      //  for future extra credit, I'll add the delegate code so that if the
+      //  request fails, I can try again later.
+      NSURLConnection *connection = [[NSURLConnection alloc]initWithRequest:request delegate:nil];
+    }
   }
 }
 
